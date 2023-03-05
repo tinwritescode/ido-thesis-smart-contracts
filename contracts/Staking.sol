@@ -17,13 +17,20 @@ contract Staking is Staking20 {
      */
     address public deployer;
 
+    /**
+     * Lock time for staking in seconds.
+     */
+    uint256 public lockTime;
+    mapping(address => uint256) public lockTimeOf;
+
     constructor(
         uint256 _timeUnit,
         uint256 _rewardRatioNumerator,
         uint256 _rewardRatioDenominator,
         address _stakingToken,
         address _rewardToken,
-        address _nativeTokenWrapper
+        address _nativeTokenWrapper,
+        uint256 _lockTime
     )
         Staking20(
             _nativeTokenWrapper,
@@ -40,6 +47,7 @@ contract Staking is Staking20 {
 
         rewardToken = _rewardToken;
         deployer = msg.sender;
+        lockTime = _lockTime;
     }
 
     /**
@@ -74,5 +82,17 @@ contract Staking is Staking20 {
                 _rewardsAvailableInContract -
                 stakingTokenBalance;
         }
+    }
+
+    function _claimRewards() internal override {
+        require(lockTimeOf[msg.sender] < block.timestamp, "Staking is locked");
+
+        super._claimRewards();
+    }
+
+    /// @dev When staking, set new lock time.
+    function _stake(uint256 _amount) internal override {
+        lockTimeOf[msg.sender] = block.timestamp + lockTime;
+        super._stake(_amount);
     }
 }
