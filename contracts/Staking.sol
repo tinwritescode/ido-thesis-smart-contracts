@@ -90,6 +90,12 @@ contract Staking is Staking20 {
         super._claimRewards();
     }
 
+    function _withdraw(uint256 _amount) internal override {
+        require(lockTimeOf[msg.sender] < block.timestamp, "Staking is locked");
+
+        super._withdraw(_amount);
+    }
+
     /// @dev When staking, set new lock time.
     function _stake(uint256 _amount) internal override {
         lockTimeOf[msg.sender] = block.timestamp + lockTime;

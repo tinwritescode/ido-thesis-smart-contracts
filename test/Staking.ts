@@ -1,7 +1,11 @@
+import { getErc20Contract, waitForTx } from "./utils/index";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { deployContract } from "./utils";
+import { NonceManager } from "@ethersproject/experimental";
+import { BigNumber } from "ethers";
 
 describe("Lock", function () {
   // We define a fixture to reuse the same setup in every test.
@@ -12,110 +16,174 @@ describe("Lock", function () {
     const ONE_GWEI = 1_000_000_000;
 
     const lockedAmount = ONE_GWEI;
-    const unlockTime = (await time.latest()) + ONE_YEAR_IN_SECS;
 
     // Contracts are deployed using the first signer/account by default
-    const [owner, otherAccount] = await ethers.getSigners();
+    const [owner, otherAccount] = await ethers.getSigners().then((signers) =>
+      signers.map((signer) => {
+        return new NonceManager(signer);
+      })
+    );
 
-    const Lock = await ethers.getContractFactory("Lock");
-    const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
+    const address: Record<string, string> = {};
 
-    return { lock, unlockTime, lockedAmount, owner, otherAccount };
+    const timeUnitInSecs = 60;
+    const rewardRatio = {
+      numerator: 1,
+      denominator: 10000,
+    };
+    const totalSupply = BigNumber.from("1000000000");
+    const lockTime = ONE_YEAR_IN_SECS;
+
+    address["stakingToken"] = await deployContract(
+      "Erc20",
+      totalSupply,
+      "Staking Token",
+      "STK"
+    );
+    address["rewardToken"] = address["stakingToken"];
+    address["WETH"] = await deployContract(
+      "Erc20",
+      totalSupply,
+      "Wrapped Ether",
+      "WETH"
+    );
+
+    const Staking = await ethers.getContractFactory("Staking");
+    const stakingContract = await Staking.deploy(
+      timeUnitInSecs,
+      rewardRatio.numerator,
+      rewardRatio.denominator,
+      address["stakingToken"],
+      address["rewardToken"],
+      address["WETH"],
+      lockTime
+    );
+
+    // approve
+    {
+      const stakingTokenContract = await (
+        await ethers.getContractAt("Erc20", address["stakingToken"])
+      ).deployed();
+
+      const tx = await stakingTokenContract.approve(
+        stakingContract.address,
+        lockedAmount
+      );
+
+      await waitForTx(tx);
+    }
+
+    // stake
+    {
+      const tx = await stakingContract.connect(owner).stake(lockedAmount);
+      await waitForTx(tx);
+    }
+
+    return {
+      stakingContract,
+      lockedAmount,
+      owner,
+      otherAccount,
+      stakingToken: address["stakingToken"],
+      rewardToken: address["rewardToken"],
+      unlockTime: lockTime + (await time.latest()),
+    };
   }
 
   describe("Deployment", function () {
-    it("Should set the right unlockTime", async function () {
-      const { lock, unlockTime } = await loadFixture(deployOneYearLockFixture);
-
-      expect(await lock.unlockTime()).to.equal(unlockTime);
-    });
-
-    it("Should set the right owner", async function () {
-      const { lock, owner } = await loadFixture(deployOneYearLockFixture);
-
-      expect(await lock.owner()).to.equal(owner.address);
-    });
-
     it("Should receive and store the funds to lock", async function () {
-      const { lock, lockedAmount } = await loadFixture(
+      const { stakingContract, stakingToken, lockedAmount } = await loadFixture(
         deployOneYearLockFixture
       );
 
-      expect(await ethers.provider.getBalance(lock.address)).to.equal(
-        lockedAmount
+      const stakingTokenContract = await getErc20Contract(stakingToken);
+      const balance = await stakingTokenContract.balanceOf(
+        stakingContract.address
       );
+
+      expect(balance).to.equal(lockedAmount);
     });
 
-    it("Should fail if the unlockTime is not in the future", async function () {
-      // We don't use the fixture here because we want a different deployment
-      const latestTime = await time.latest();
-      const Lock = await ethers.getContractFactory("Lock");
-      await expect(Lock.deploy(latestTime, { value: 1 })).to.be.revertedWith(
-        "Unlock time should be in the future"
+    it("Should set the unlockTime to the current time plus the lockTime", async function () {
+      const { stakingContract, lockedAmount, owner } = await loadFixture(
+        deployOneYearLockFixture
       );
+
+      const lockTime = await stakingContract.lockTime();
+      const unlockTime = await stakingContract.lockTimeOf(owner.getAddress());
+
+      expect(unlockTime).to.equal(lockTime.add(await time.latest()));
     });
   });
 
   describe("Withdrawals", function () {
     describe("Validations", function () {
       it("Should revert with the right error if called too soon", async function () {
-        const { lock } = await loadFixture(deployOneYearLockFixture);
+        const { stakingContract, lockedAmount } = await loadFixture(
+          deployOneYearLockFixture
+        );
 
-        await expect(lock.withdraw()).to.be.revertedWith(
-          "You can't withdraw yet"
+        await expect(stakingContract.withdraw(lockedAmount)).to.be.revertedWith(
+          "Staking is locked"
         );
       });
 
       it("Should revert with the right error if called from another account", async function () {
-        const { lock, unlockTime, otherAccount } = await loadFixture(
-          deployOneYearLockFixture
-        );
+        const { stakingContract, lockedAmount, otherAccount, unlockTime } =
+          await loadFixture(deployOneYearLockFixture);
 
         // We can increase the time in Hardhat Network
         await time.increaseTo(unlockTime);
 
         // We use lock.connect() to send a transaction from another account
-        await expect(lock.connect(otherAccount).withdraw()).to.be.revertedWith(
-          "You aren't the owner"
-        );
+        await expect(
+          stakingContract.connect(otherAccount).withdraw(lockedAmount)
+        ).to.be.revertedWith("Withdrawing more than staked");
       });
 
       it("Shouldn't fail if the unlockTime has arrived and the owner calls it", async function () {
-        const { lock, unlockTime } = await loadFixture(
+        const { stakingContract, unlockTime, lockedAmount } = await loadFixture(
           deployOneYearLockFixture
         );
 
         // Transactions are sent using the first signer by default
         await time.increaseTo(unlockTime);
 
-        await expect(lock.withdraw()).not.to.be.reverted;
+        await expect(stakingContract.withdraw(lockedAmount)).not.to.be.reverted;
       });
     });
 
     describe("Events", function () {
       it("Should emit an event on withdrawals", async function () {
-        const { lock, unlockTime, lockedAmount } = await loadFixture(
+        const { stakingContract, unlockTime, lockedAmount } = await loadFixture(
           deployOneYearLockFixture
         );
 
         await time.increaseTo(unlockTime);
 
-        await expect(lock.withdraw())
-          .to.emit(lock, "Withdrawal")
-          .withArgs(lockedAmount, anyValue); // We accept any value as `when` arg
+        await expect(stakingContract.withdraw(lockedAmount))
+          .to.emit(stakingContract, "TokensWithdrawn")
+          .withArgs(anyValue, lockedAmount); // We accept any value as `when` arg
       });
     });
 
     describe("Transfers", function () {
       it("Should transfer the funds to the owner", async function () {
-        const { lock, unlockTime, lockedAmount, owner } = await loadFixture(
-          deployOneYearLockFixture
-        );
+        const {
+          stakingContract,
+          unlockTime,
+          lockedAmount,
+          owner,
+          rewardToken,
+        } = await loadFixture(deployOneYearLockFixture);
 
         await time.increaseTo(unlockTime);
 
-        await expect(lock.withdraw()).to.changeEtherBalances(
-          [owner, lock],
+        await expect(
+          stakingContract.withdraw(lockedAmount)
+        ).to.changeTokenBalances(
+          await getErc20Contract(rewardToken),
+          [owner, stakingContract],
           [lockedAmount, -lockedAmount]
         );
       });

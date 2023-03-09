@@ -5,6 +5,7 @@
     "hardhat": "^2.13.0"
   },
   "dependencies": {
+    "@ethersproject/experimental": "^5.7.0",
     "@openzeppelin/contracts": "^4.8.2",
     "@thirdweb-dev/contracts": "^3.4.3"
   }
