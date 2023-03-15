@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
  * Users can purchase tokens after sale started and claim after sale ended
  */
 
-contract IDOSale is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
+contract IDOContract is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
     using SafeERC20 for IERC20;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -205,11 +205,9 @@ contract IDOSale is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
      * @dev Add wallet to whitelist
      * If wallet is added, removed and added to whitelist, the account is repeated
      */
-    function addWhitelist(address[] memory accounts)
-        external
-        onlyOperator
-        whenNotPaused
-    {
+    function addWhitelist(
+        address[] memory accounts
+    ) external onlyOperator whenNotPaused {
         for (uint256 i = 0; i < accounts.length; i++) {
             require(accounts[i] != address(0), "IDOSale: ZERO_ADDRESS");
             if (!whitelist[accounts[i]]) {
@@ -225,11 +223,9 @@ contract IDOSale is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
      * @dev Remove wallet from whitelist
      * Removed wallets still remain in `_whitelistedUsers` array
      */
-    function removeWhitelist(address[] memory accounts)
-        external
-        onlyOperator
-        whenNotPaused
-    {
+    function removeWhitelist(
+        address[] memory accounts
+    ) external onlyOperator whenNotPaused {
         for (uint256 i = 0; i < accounts.length; i++) {
             require(accounts[i] != address(0), "IDOSale: ZERO_ADDRESS");
             if (whitelist[accounts[i]]) {
@@ -311,7 +307,7 @@ contract IDOSale is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
             totalPurchasedAmount + amount <= idoBalance,
             "IDOSale: INSUFFICIENT_SELL_BALANCE"
         );
-        uint256 purchaseTokenAmount = (amount * idoPrice) / (10**18);
+        uint256 purchaseTokenAmount = (amount * idoPrice) / (10 ** 18);
         require(
             purchaseTokenAmount <= purchaseToken.balanceOf(_msgSender()),
             "IDOSale: INSUFFICIENT_FUNDS"
@@ -350,7 +346,7 @@ contract IDOSale is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
             totalPurchasedAmount + amount <= idoBalance,
             "IDOSale: INSUFFICIENT_SELL_BALANCE"
         );
-        uint256 purchaseTokenAmount = (amount * idoPrice) / (10**18);
+        uint256 purchaseTokenAmount = (amount * idoPrice) / (10 ** 18);
         require(
             purchaseTokenAmount <= purchaseToken.balanceOf(_msgSender()),
             "IDOSale: INSUFFICIENT_FUNDS"

@@ -11,4 +11,8 @@ contract Erc20 is ERC20 {
     ) ERC20(_name, _symbol) {
         _mint(msg.sender, _totalSupply);
     }
+
+    function mint(address _to, uint256 _amount) public {
+        _mint(_to, _amount);
+    }
 }
