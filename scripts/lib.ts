@@ -25,7 +25,10 @@ export async function deployStakingContract() {
   address["rewardToken"] = address["stakingToken"];
 
   switch (network.name) {
-    case "hardhat": {
+    case "polygonMumbai": {
+      address["WETH"] = "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889"; // WMATIC
+    }
+    default: {
       address["WETH"] = await deployContract(
         "Erc20",
         totalSupply,
@@ -33,9 +36,6 @@ export async function deployStakingContract() {
         "WETH"
       );
       break;
-    }
-    case "polygonMumbai": {
-      address["WETH"] = "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889"; // WMATIC
     }
   }
 
