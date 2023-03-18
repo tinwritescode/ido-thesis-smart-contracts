@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "./interface/IStaking.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/draft-IERC20Permit.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /**
  * Users can purchase tokens after sale started and claim after sale ended
@@ -35,6 +33,10 @@ contract IDOContract is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
     uint256 public purchaseCap;
     // The total purchased amount
     uint256 public totalPurchasedAmount;
+
+    // Staking contract
+    IStaking public stakingContract;
+    uint256 public minStakingRequired;
 
     // Date timestamp when token sale start
     uint256 public startTime;
@@ -70,7 +72,9 @@ contract IDOContract is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
         uint256 _idoPrice,
         uint256 _purchaseCap,
         uint256 _startTime,
-        uint256 _endTime
+        uint256 _endTime,
+        address _stakingContract,
+        uint256 _minStakingRequired
     ) {
         require(address(_ido) != address(0), "IDOSale: IDO_ADDRESS_INVALID");
         require(
@@ -93,6 +97,8 @@ contract IDOContract is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
         purchaseCap = _purchaseCap;
         startTime = _startTime;
         endTime = _endTime;
+        stakingContract = IStaking(_stakingContract);
+        minStakingRequired = _minStakingRequired;
     }
 
     /**************************|
@@ -202,19 +208,26 @@ contract IDOContract is AccessControl, Pausable, ReentrancyGuard, Ownable2Step {
     }
 
     /**
-     * @dev Add wallet to whitelist
+     * @dev Add wallet to whitelist from staking contract
      * If wallet is added, removed and added to whitelist, the account is repeated
+     * Only add wallet if staking amount >= minStakingRequired
+     * Only add wallet if wallet is not in whitelist
+     * Only add wallet if wallet is not in _whitelistedUsers
      */
-    function addWhitelist(
-        address[] memory accounts
-    ) external onlyOperator whenNotPaused {
-        for (uint256 i = 0; i < accounts.length; i++) {
-            require(accounts[i] != address(0), "IDOSale: ZERO_ADDRESS");
-            if (!whitelist[accounts[i]]) {
-                whitelist[accounts[i]] = true;
-                _whitelistedUsers.push(accounts[i]);
+    function addWhitelistFromStaking() external onlyOperator whenNotPaused {
+        uint256 length = stakingContract.getStakersLength();
 
-                emit WhitelistAdded(accounts[i]);
+        for (uint256 i = 0; i < length; i++) {
+            address account = stakingContract.getStakerAtIndex(i);
+            (uint amount, uint reward) = stakingContract.getStakeInfo(account);
+
+            if (amount + reward >= minStakingRequired) {
+                if (!whitelist[account]) {
+                    whitelist[account] = true;
+                    _whitelistedUsers.push(account);
+
+                    emit WhitelistAdded(account);
+                }
             }
         }
     }

@@ -1,7 +1,8 @@
 import { BigNumber } from "ethers";
-import { network, ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import { deployContract } from "../test/utils";
 import { Erc20 } from "../typechain-types";
+import { Staking } from "./../typechain-types/contracts/Staking";
 
 export async function deployStakingContract() {
   const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
@@ -79,13 +80,15 @@ export async function deployUSDCToken() {
 
 export async function deployIdoContract(
   idoToken: Erc20,
-  stakingTokenAddress: string
+  stakingTokenAddress: string,
+  stakingContract: Staking
 ) {
   const currentTimestampInSeconds = Math.round(Date.now() / 1000);
   const idoPrice = ethers.utils.parseEther("1.5");
   const startTime = currentTimestampInSeconds + 60;
   const endTime = currentTimestampInSeconds + 60 * 60;
   const purchaseCap = ethers.utils.parseEther("1000");
+  const stakingRequired = ethers.utils.parseEther("100");
 
   const IdoContract = await ethers.getContractFactory("IDOContract");
   const idoContract = await IdoContract.deploy(
@@ -94,7 +97,9 @@ export async function deployIdoContract(
     idoPrice,
     purchaseCap,
     startTime,
-    endTime
+    endTime,
+    stakingContract.address,
+    stakingRequired
   );
 
   await idoContract.deployed();

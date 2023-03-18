@@ -4,8 +4,9 @@ pragma solidity ^0.8.9;
 import "@thirdweb-dev/contracts/extension/Staking20.sol";
 import "@thirdweb-dev/contracts/eip/interface/IERC20.sol";
 import "@thirdweb-dev/contracts/eip/interface/IERC20Metadata.sol";
+import "./interface/IStaking.sol"; 
 
-contract Staking is Staking20 {
+contract Staking is IStaking, Staking20 {
     // ERC20 Reward Token address. See {_mintRewards}.
     address public rewardToken;
 
@@ -100,5 +101,18 @@ contract Staking is Staking20 {
     function _stake(uint256 _amount) internal override {
         lockTimeOf[msg.sender] = block.timestamp + lockTime;
         super._stake(_amount);
+    }
+
+    function getStakersLength() external view override returns (uint256) {
+        return stakersArray.length;
+    }
+
+    function getStakerAtIndex(uint256 _index)
+        external
+        view
+        override
+        returns (address)
+    {
+        return stakersArray[_index];
     }
 }

@@ -16,7 +16,8 @@ async function main() {
   const { usdcToken } = await deployUSDCToken();
   const { idoContract } = await deployIdoContract(
     idoToken,
-    stakingTokenAddress
+    stakingTokenAddress,
+    stakingContract
   );
 }
 
