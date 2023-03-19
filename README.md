@@ -1,13 +1,19 @@
-# Sample Hardhat Project
+# IDO Thesis Smart Contract
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+This is smart contract repo. Running this repo is required for the d-app to run on local.
 
-Try running some of the following tasks:
+
+## Local development
+
+### Running node
+
+You will need to run these commands for the node to run.
 
 ```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
+pnpm install
+pnpm hardhat node # localnet work as default
+pnpm run deploy
 ```
+
+Then open the dapp repo, run `pnpm run dev` command.
+Be sure that your `.env` is setup to listen to `http://127.0.0.1:8545` for accessing the node.
