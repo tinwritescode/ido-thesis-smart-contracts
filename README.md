@@ -12,7 +12,11 @@ You will need to run these commands for the node to run.
 ```shell
 pnpm install
 pnpm hardhat node # localnet work as default
-pnpm run deploy
+```
+
+Open another terminal, run: 
+```shell
+pnpm run deploy --network localhost
 ```
 
 Then open the dapp repo, run `pnpm run dev` command.
